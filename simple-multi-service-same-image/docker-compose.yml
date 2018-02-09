@@ -1,0 +1,23 @@
+version: '2'
+services:
+  service1:
+    container_name: service1 # set a name for container
+    build: .
+    image: test/service1:latest # service2 will build then this image is existed at this time
+    command: ["./loop.sh"] # as long as it run something, the container is still alive
+    volumes:
+      - .:/app # relative path or full path means this is a mount point from host to `app`
+    ports:
+      - "3001:3001"
+  service2:
+    container_name: service2
+    build: .
+    image: test/service1:latest # service2 will be built first, if not found this image, it will call `build`
+    command: ["./loop.sh"]
+    volumes:
+      - test_volume:/app_2 # with volume name, this means mount a separate volume (created by Docker) to `app_2`
+    ports:
+      - "3002:3002"
+
+volumes:
+  test_volume:
