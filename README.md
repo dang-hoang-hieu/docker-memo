@@ -27,7 +27,7 @@ To correctly exit debug and `detach`, type `exit` to exit debug and then type CT
 
 ```
 docker ps
-docker exec -it conciergeu_dialog bash # now you are inside container, you can start running `rails console` 
+docker exec -it name_of_container/or id bash # now you are inside container, you can start running `rails console` 
 ```
 ☆＼(￣ー￣)／☆
 
