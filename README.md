@@ -9,11 +9,20 @@ docker ps -f status=exited
 ```
 2. How to use Binding.pry or Byebug:
 
+set 2 options to service in docker-compose & reset service
 ```
-docker ps # to get the id or name of container ( as result above)
-docker attach conciergeu_dialog # now this conosle will reflect log of dialog_pi
-# after the execution stop at the `byebug` line, press enter in this console and you can start debug
+tty: true
+stdin_open: true
+
 ```
+```
+docker ps # to get the id or name of container
+docker attach name_of_container/or id
+# after the execution stop at the `byebug` line, you can start debug
+```
+
+To correctly exit debug and `detach`, type `exit` to exit debug and then type CTRL + p + q to detach
+
 3. How to access container and run commands:
 
 ```
