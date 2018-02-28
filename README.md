@@ -21,7 +21,7 @@ docker attach name_of_container/or id
 # after the execution stop at the `byebug` line, you can start debug
 ```
 
-To correctly exit debug and `detach`, type `exit` to exit debug and then type CTRL + p + q to detach
+To correctly exit debug and `detach`, type `continue` to exit debug and then type CTRL + p + q to detach ( if you CTRL + D then CTRL + C it will stop the server container)
 
 3. How to access container and run commands:
 
