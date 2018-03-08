@@ -1,0 +1,155 @@
+# Complicated docker compose which can link many projects
+# Each Dockerfile need to be in a separate project directory which include its code
+# This is only template so they reside in same hierachy
+
+version: '2'
+services:
+  project_db:
+    container_name: project_postgres
+    build:
+      context: .
+      dockerfile: Dockerfile.postgres.local
+    image: postgres-custom:latest
+    volumes:
+      - project_postgres:/var/lib/postgresql/data
+  project_redis:
+    container_name: project_redis
+    image: redis:4
+    ports:
+      - '6379:6379'
+    volumes:
+      - project_redis:/redis
+  project_web:
+    container_name: project_web
+    build:
+      context: .
+      dockerfile: Dockerfile.project_web.local
+    image: :project_web:latest
+    command:
+      - /bin/sh
+      - -c
+      - |
+        yarn install
+        bundle check || bundle install
+        bin/rails db:migrate RAILS_ENV=development
+        bundle exec sidekiq &
+        rm -f tmp/pids/server.pid
+        bundle exec rails server -p 3001 -b '0.0.0.0'
+    tty: true
+    stdin_open: true
+    volumes:
+      - .:/app
+      - project_web_gem:/bundle_path
+      - project_web_node:/app/node_modules
+    ports:
+      - '3001:3001'
+    depends_on:
+      - project_db
+      - project_redis
+      - project_auth
+      - project_custom_db
+  project_auth:
+    container_name: project_auth
+    image: project_auth:latest
+    build:
+      context: ../auth-project
+      dockerfile: Dockerfile.project_auth.local
+    command:
+      - /bin/sh
+      - -c
+      - |
+        bundle check || bundle install
+        bin/rails db:migrate RAILS_ENV=development
+        yarn install
+        bin/webpack-dev-server &
+        # bundle exec rails runner "AccessToken.bulk_cache"
+        rm -f tmp/pids/server.pid
+        bundle exec rails server -p 3000 -b '0.0.0.0'
+    volumes:
+      - ../auth-project:/app # other project can be linked into this compose file
+      - project_auth_gem:/bundle_path
+      - project_auth_node:/app/node_modules
+    ports:
+      - '3000:3000'
+  project_custom_db:
+    container_name: project_custom_db
+    build:
+      context: ../custom_database
+      dockerfile: Dockerfile.local
+    image: project_custom_db:latest
+    command:
+      - /bin/sh
+      - -c
+      - |
+        yarn install
+        bundle check || bundle install
+        bin/rails db:migrate RAILS_ENV=development
+        bundle exec sidekiq &
+        rm -f tmp/pids/server.pid
+        bundle exec rails server -p 3004 -b '0.0.0.0'
+    tty: true
+    stdin_open: true
+    volumes:
+      - ../custom_database:/app
+      - project_custom_db_gem:/bundle_path
+      - project_custom_db_node:/app/node_modules
+    ports:
+      - '3004:3004'
+    depends_on:
+      - project_db
+      - project_redis
+  project_bot_web:
+    container_name: project_bot_web
+    build:
+      context: ../bot_web_server
+      dockerfile: Dockerfile.local
+    image: project_bot_web:latest
+    tty: true
+    stdin_open: true
+    command:
+      - /bin/sh
+      - -c
+      - |
+        bundle update puma
+        bundle check || bundle install
+        bin/rails db:migrate RAILS_ENV=development
+        bundle exec sidekiq &
+        rm -f tmp/pids/server.pid
+        bundle exec rails server -p 3005 -b '0.0.0.0'
+    volumes:
+      - ../bot_web_server:/app
+      - project_bot_web_gem:/bundle_path
+      - project_bot_web_node:/app/node_modules
+    ports:
+      - '3005:3005'
+    depends_on:
+      - project_db
+      - project_redis
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:5.3.3
+    container_name: project_elasticsearch
+    environment:
+      - cluster.name=docker-cluster
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - project_esdata:/usr/share/elasticsearch/data
+    ports:
+      - '9200:9200'
+
+volumes:
+  project_postgres:
+  project_redis:
+  project_web_gem:
+  project_web_node:
+  project_auth_gem:
+  project_auth_node:
+  project_custom_db_gem:
+  project_custom_db_node:
+  project_bot_web_gem:
+  project_bot_web_node:
+  project_esdata:

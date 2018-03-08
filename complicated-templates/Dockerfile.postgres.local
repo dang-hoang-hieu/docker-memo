@@ -1,0 +1,5 @@
+FROM postgres:9.6
+
+ENV LAST_MODIFIED=2018-3-7
+
+ADD ./init-user-db.sh /docker-entrypoint-initdb.d

@@ -1,0 +1,118 @@
+FROM ruby:2.3.1
+
+RUN mkdir /app
+WORKDIR /app
+RUN set -ex; \
+  apt-get update; \
+  apt-get install -y --no-install-recommends \
+      ca-certificates \
+      git \
+      curl \
+      wget \
+    autoconf \
+    automake \
+    bzip2 \
+    file \
+    g++ \
+    gcc \
+    imagemagick \
+    libbz2-dev \
+    libc6-dev \
+    libcurl4-openssl-dev \
+    libdb-dev \
+    libevent-dev \
+    libffi-dev \
+    libgdbm-dev \
+    libgeoip-dev \
+    libglib2.0-dev \
+    libjpeg-dev \
+    libkrb5-dev \
+    liblzma-dev \
+    libmagickcore-dev \
+    libmagickwand-dev \
+    libncurses-dev \
+    libpng-dev \
+    libpq-dev \
+    libreadline-dev \
+    libsqlite3-dev \
+    libssl-dev \
+    libtool \
+    libwebp-dev \
+    libxml2-dev \
+    libxslt-dev \
+    libyaml-dev \
+    make \
+    patch \
+    xz-utils \
+    zlib1g-dev \
+    postgresql postgresql-contrib \
+    aptitude \
+    mecab \
+    libmecab-dev \
+    mecab-ipadic-utf8 \
+# https://lists.debian.org/debian-devel-announce/2016/09/msg00000.html
+    $( \
+# if we use just "apt-cache show" here, it returns zero because "Can't select versions from package 'libmysqlclient-dev' as it is purely virtual", hence the pipe to grep
+      if apt-cache show 'default-libmysqlclient-dev' 2>/dev/null | grep -q '^Version:'; then \
+        echo 'default-libmysqlclient-dev'; \
+      else \
+        echo 'libmysqlclient-dev'; \
+      fi \
+    ) \
+  ; \
+rm -rf /var/lib/apt/lists/*
+
+# Install node & yarn
+RUN curl --silent --location https://deb.nodesource.com/setup_9.x | bash -
+RUN apt-get install -qq nodejs
+RUN npm install -g yarn
+
+# skip installing gem documentation
+RUN mkdir -p /usr/local/etc \
+  && { \
+    echo 'install: --no-document'; \
+    echo 'update: --no-document'; \
+  } >> /usr/local/etc/gemrc
+
+# install things globally, for great justice
+# and don't create ".bundle" in all our apps
+# bundle_path will be mounted to separate volume
+ENV GEM_HOME /bundle_path
+ENV BUNDLE_PATH="$GEM_HOME" \
+  BUNDLE_BIN="$GEM_HOME/bin" \
+  BUNDLE_SILENCE_ROOT_WARNING=1 \
+  BUNDLE_APP_CONFIG="$GEM_HOME"
+ENV PATH $BUNDLE_BIN:$PATH
+RUN mkdir -p "$GEM_HOME" "$BUNDLE_BIN" \
+&& chmod 777 "$GEM_HOME" "$BUNDLE_BIN"
+
+# RUN ln -s /usr/bin/nodejs /usr/bin/node
+# RUN aptitude install -y mecab libmecab-dev mecab-ipadic-utf8 git make curl xz-utils file
+# RUN git clone --depth 1 https://github.com/neologd/mecab-ipadic-neologd.git
+# RUN mecab-ipadic-neologd/bin/install-mecab-ipadic-neologd -n -y
+# ENV MECAB_PATH /usr/local/lib/libmecab.so.2
+
+RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add -
+RUN sh -c 'echo "deb http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list'
+RUN apt-get update
+RUN apt-get install -y google-chrome-stable
+
+# packages install are handled by yarn in compose file
+# ADD package.json package.json
+# RUN npm install
+# RUN npm install -g browserify
+
+# bundle gem when startup to cache it into separate volume
+# ADD Gemfile Gemfile
+# ADD Gemfile.lock Gemfile.lock
+# RUN bundle install
+
+ADD . /app
+RUN mkdir -p tmp/sockets
+
+VOLUME /bundle_path
+VOLUME /app/node_modules
+VOLUME /app/public
+VOLUME /app/tmp
+
+CMD  Xvfb :0 -ac -screen 0 1024x768x24 &
