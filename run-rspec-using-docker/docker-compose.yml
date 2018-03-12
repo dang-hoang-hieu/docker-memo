@@ -1,0 +1,46 @@
+# This is useful when running only rspec for small gem or rails engine
+
+version: '2'
+services:
+  app_redis:
+    container_name: app_redis
+    image: redis:4
+    ports:
+      - '6379:6379'
+    volumes:
+      - app_redis:/redis
+  app_db:
+    container_name: app_db
+    image: postgres:9.6
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app123
+      POSTGRES_DB: app_db
+    volumes:
+      - app_db:/var/lib/postgresql/data
+  app_plugin:
+    container_name: app_plugin
+    image: ruby:2.4.3
+    environment:
+      BUNDLE_PATH: /bundle_path
+    command:
+      - /bin/sh
+      - -c
+      - |
+        cd /app
+        bundle check || bundle install
+        bundle exec rails db:migrate RAILS_ENV=test
+        bundle exec rspec
+    tty: true
+    stdin_open: true
+    volumes:
+      - .:/app
+      - app_plugin_gem:/bundle_path
+    depends_on:
+      - app_db
+      - app_redis
+
+volumes:
+  app_db:
+  app_plugin_gem:
+  app_redis:
