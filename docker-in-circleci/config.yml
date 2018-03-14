@@ -1,0 +1,87 @@
+version: 2
+jobs:
+  test:
+    working_directory: ~/app
+    docker:
+      - image: ruby:2.4.3
+        name: app
+        environment:
+          - RAILS_ENV: test
+          - PGUSER: app
+          - ELASTICSEARCH_HOST: custom_elasticsearch
+      - image: docker.elastic.co/elasticsearch/elasticsearch:6.2.2
+        name: custom_elasticsearch
+        environment:
+          - cluster.name=docker-cluster
+          - bootstrap.memory_lock=false
+          - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+          - transport.host=0.0.0.0
+          - discovery.zen.minimum_master_nodes=1
+          - xpack.security.enabled=false
+      - image: circleci/postgres:9.4.12-alpine
+        environment:
+          - POSTGRES_USER=app
+          - POSTGRES_DB=app_test
+      - image: redis
+    steps:
+      - checkout
+
+      # Restore bundle cache
+      - restore_cache:
+          key: rails-auth
+
+      # Bundle install dependencies
+      - run: |
+              gem install bundler
+              bundle install
+
+      # Store bundle cache
+      - save_cache:
+          key: rails-auth
+          paths:
+              - vendor/bundler
+
+      # Timezone
+      - run:
+          name: Switch timezone to Tokyo
+          command: cp /usr/share/zoneinfo/Asia/Tokyo /etc/localtime
+
+      # yarn install
+      - run:
+          name: yarn install
+          command: yarn install
+
+      # Database setup
+      - run: bundle exec rake db:create
+      - run: bundle exec rake db:schema:load
+
+      # Run rspec in parallel
+      - run: |
+          bundle exec rspec --profile 10 \
+                            --out test_results/rspec.xml \
+                            --format progress \
+                            $(circleci tests glob "spec/**/*_spec.rb" | circleci tests split --split-by=timings)
+      # Save test results for timing analysis
+      - store_test_results:
+          path: test_results
+
+  deploy:
+      docker:
+        - image: alpine:3.5
+      steps:
+          - checkout
+          - run: sh script/deploy.sh
+
+workflows:
+  version: 2
+  build_and_test:
+    jobs:
+        - test
+        - deploy:
+            requires:
+                - test
+            filters:
+              branches:
+                only:
+                    - master
+                    - milestone
